@@ -1,4 +1,4 @@
-# Agentic Terraform Review
+# Agentic AI Terraform Review
 
 An automated pipeline that policy-checks Terraform infrastructure against custom GCP security/compliance rules, then uses an LLM (Gemini) to explain each violation and propose a fix — posted as a Markdown PR comment.
 
