@@ -1,0 +1,71 @@
+name: Agentic Terraform Review
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: write # Required to post comments
+  id-token: write      # Required for GCP Workload Identity
+
+jobs:
+  terraform_review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # - name: Authenticate to Google Cloud
+      #   uses: google-github-actions/auth@v2
+      #   with:
+      #     workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
+      #     service_account: 'my-service-account@my-project.iam.gserviceaccount.com'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CRED }}'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+
+      - name: Terraform Init & Plan
+        run: |
+          terraform init
+          terraform plan -out=tfplan.binary
+          terraform show -json tfplan.binary > tfplan.json
+
+      - name: Run OPA Policy Check
+        continue-on-error: false
+        run: |
+          opa eval --input tfplan.json --data policies/ -f json "data.terraform.gcp.deny" > opa_violations.json
+          cat opa_violations.json
+
+      - name: Setup Python for Agent
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Run Agent Review Logic
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # Or your LLM key
+        run: |
+          pip install requests google-generativeai
+          python agent/agent_review.py
+
+      - name: Post Review to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reviewBody = fs.readFileSync('pr_comment.txt', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: reviewBody
+            });
