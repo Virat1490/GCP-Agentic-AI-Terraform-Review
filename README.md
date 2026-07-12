@@ -15,7 +15,13 @@ These three files work together as stages of one pipeline, not as independent sc
 ## How it works, end to end
 
 ```
-main.tf  →  terraform plan  →  tfplan.json
+                                main.tf
+                                    │
+                                    ▼
+                                terraform plan
+                                    │
+                                    ▼
+                                tfplan.json
                                     │
                                     ▼
                          opa eval (gcp_rules.rego)
